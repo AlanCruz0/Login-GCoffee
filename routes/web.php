@@ -20,5 +20,6 @@ Route::get('dashboard', function () {
 })->middleware('auth')->name('dashboard');
 
 Route::get('verify-email', [AuthController::class, 'showVerifyForm'])->name('verification.notice');
+
 Route::post('verify-email', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 Route::get('verify-email/resend', [AuthController::class, 'resendVerificationEmail'])->name('verification.resend');

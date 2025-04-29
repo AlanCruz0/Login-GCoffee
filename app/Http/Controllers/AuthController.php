@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
 use App\Mail\VerificationCodeMail;
 use Illuminate\Support\Str;
+use App\Models\VerifyCode;
 
 class AuthController extends Controller
 {
@@ -29,7 +30,7 @@ class AuthController extends Controller
         ]);
 
         $verificationCode = Str::random(6);
-        Session::put('temp_user_data', [
+        VerifyCode::create( [
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -38,7 +39,7 @@ class AuthController extends Controller
     
         Mail::to($request->email)->send(new VerificationCodeMail($verificationCode));
     
-        return redirect()->route('verification.notice');
+        return redirect()->route('login');
     }
 
     public function showLoginForm()
@@ -53,6 +54,18 @@ class AuthController extends Controller
             'password' => 'required|string',
             'g-recaptcha-response' => 'required|captcha',
         ]);
+
+        if (!User::whereExists($request->email)) //Verificar si no existe en user y en verifyCode
+        {
+            return back()->withErrors([
+                'email' => 'Las credenciales no coinciden.',
+            ])->onlyInput('email');
+        }
+
+        // Compruebo correo y contraseña
+        // Generar codigo
+        // Enviar correo 
+        // Mando al formulario del codigo
 
         if (Auth::attempt($request->only('email', 'password'))) {
             $request->session()->regenerate();
