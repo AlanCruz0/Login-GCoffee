@@ -6,6 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Session;
+use App\Mail\VerificationCodeMail;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -23,15 +28,17 @@ class AuthController extends Controller
             'g-recaptcha-response' => 'required|captcha',
         ]);
 
-        $user = User::create([
+        $verificationCode = Str::random(6);
+        Session::put('temp_user_data', [
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'verification_code' => $verificationCode,
         ]);
-
-        Auth::login($user);
-
-        return redirect()->route('dashboard');
+    
+        Mail::to($request->email)->send(new VerificationCodeMail($verificationCode));
+    
+        return redirect()->route('verification.notice');
     }
 
     public function showLoginForm()
@@ -63,5 +70,41 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login');
+    }
+
+    public function showVerifyForm()
+    {
+        return view('auth.verify-email');
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $request->validate([
+            'verification_code' => 'required|numeric|digits:6', // Aquí suponemos que el código es de 6 dígitos
+        ]);
+
+        $user = Auth::user();
+        
+        // Suponiendo que el código de verificación se guarda en el usuario.
+        if ($request->verification_code == $user->verification_code) {
+            $user->markEmailAsVerified();
+            event(new Verified($user));
+
+            return redirect()->route('dashboard')->with('success', 'Correo electrónico verificado con éxito.');
+        }
+
+        return back()->withErrors(['verification_code' => 'El código de verificación es incorrecto.']);
+    }
+
+    public function resendVerificationEmail()
+    {
+        $user = Auth::user();
+        
+        // Enviar el correo de verificación de nuevo
+        if (!$user->hasVerifiedEmail()) {
+            $user->sendEmailVerificationNotification();
+        }
+
+        return back()->with('success', 'El correo de verificación ha sido reenviado.');
     }
 }
